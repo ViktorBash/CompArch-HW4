@@ -11,7 +11,7 @@ python gen_data.py --count=10000
 python gen_data.py --count=100000
 python gen_data.py --count=1000000
 python gen_data.py --count=10000000
-python gen_data.py --count=100000000  # Will take ~60s to run
+python gen_data.py --count=100000000  # Will take ~60s to run, generates ~10GB file
 """
 
 import argparse
