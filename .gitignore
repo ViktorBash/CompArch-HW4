@@ -59,4 +59,7 @@ dkms.conf
 .vscode/
 
 # Data files
-*.txt
+#*.txt
+
+# Executable files:
+sorting
