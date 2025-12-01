@@ -3,14 +3,17 @@
 #include <stdint.h>
 #include <string.h>
 
+#define DBG_UINT(x) printf(#x " = %u\n", x)
+#define DBG_STR(x) printf(#x " = %s\n", x)
+
 void merge(uint32_t *arr, size_t left, size_t mid, size_t right) {
     int i, j, k;
     int n = mid - left + 1;
     int m = right - mid;
 
-    // TODO: This can be optimized, or at least not made a stack variable
-    // Cannot handle 1GB sized file right now
-    uint32_t leftArr[n], rightArr[m];
+    // TODO: Maybe there is a way to allocate all at once instead of making a bunch of mallocs, or to optimize this some other way
+    uint32_t *leftArr = malloc(n * sizeof(uint32_t));
+    uint32_t *rightArr = malloc(m * sizeof(uint32_t));
 
     for (j = 0; j < m; j++)
         rightArr[j] = arr[mid + 1 + j];
@@ -45,6 +48,10 @@ void merge(uint32_t *arr, size_t left, size_t mid, size_t right) {
         j++;
         k++;
     }
+
+    // Cleanup
+    free(leftArr);
+    free(rightArr);
 }
 
 // [left, right] (right is inclusive)
