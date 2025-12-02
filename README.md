@@ -10,7 +10,7 @@ python gen_data.py --count=10000
 python gen_data.py --count=100000
 python gen_data.py --count=1000000
 python gen_data.py --count=10000000
-python gen_data.py --count=100000000  # Will take ~60s to run, generates ~10GB file
+python gen_data.py --count=100000000  # Will take ~60s to run, generates ~1GB file
 ```
 
 ## How to run the program
