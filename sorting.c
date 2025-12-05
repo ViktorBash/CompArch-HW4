@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #define DBG_UINT(x) printf(#x " = %u\n", x)
 #define DBG_STR(x) printf(#x " = %s\n", x)
@@ -79,11 +80,18 @@ void sort_array(uint32_t *arr, size_t size) {
 }
 
 int main(int argc, char *argv[]) {
+    clock_t program_start = clock();
+
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <input_file>\n", argv[0]);
         return 1;
     }
 
+    // See how long stuff takes for Amdahl's law calculations
+    clock_t start, end;
+    double read_time, sort_time, write_time;
+
+    start = clock();
     char *filename = argv[1];
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
@@ -117,19 +125,14 @@ int main(int argc, char *argv[]) {
         }
     }
     fclose(file);
-
-    // Print out the input (unsorted)
-    //    for (int i = 0; i < size; ++i) {
-    //        printf("%u\n", sorted_arr[i]);
-    //    }
+    end = clock();
+    read_time = ((double) (end - start)) / CLOCKS_PER_SEC;
 
     // Sort the array
+    start = clock();
     sort_array(sorted_arr, size);
-
-    // Print out the result (sorted)
-    //    for (int i = 0; i < size; ++i) {
-    //        printf("%u\n", sorted_arr[i]);
-    //    }
+    end = clock();
+    sort_time = ((double) (end - start)) / CLOCKS_PER_SEC;
 
     // Construct output file path
     char output_filepath[256]; // Max 256 filename length
@@ -144,6 +147,7 @@ int main(int argc, char *argv[]) {
     }
     snprintf(output_filepath, sizeof(output_filepath), "sorted_data/%s", input_basename);
 
+    start = clock();
     FILE *output_file = fopen(output_filepath, "w");
     if (output_file == NULL) {
         perror("Error opening output file");
@@ -155,11 +159,22 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < size; ++i) {
         fprintf(output_file, "%u\n", sorted_arr[i]);
     }
+    fclose(output_file);
 
     // Cleanup time
-    fclose(output_file);
     free(sorted_arr);
+
+    end = clock();
+    write_time = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+    double total_program_time = ((double) (end - program_start)) / CLOCKS_PER_SEC;
+
+
+    printf("Time to read data: %.2f seconds\n", read_time);
+    printf("Time to sort data: %.2f seconds\n", sort_time);
+    printf("Time to write data: %.2f seconds\n", write_time);
+    printf("Total time ran: %.2f seconds\n", total_program_time);
+
     return 0;
 }
-
        
