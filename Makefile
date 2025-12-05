@@ -1,9 +1,20 @@
 CC      = gcc
-TARGET  = sorting
+TARGET  = sorter
 C_FILES = $(filter-out $(TARGET).c, $(wildcard *.c))
 OBJS    = $(patsubst %.c,%.o,$(C_FILES))
 CFLAGS  = -g -Wall -Werror -pedantic-errors
 LDFLAGS =
+
+# Detect OS and set cleanup command accordingly
+ifdef OS
+   # Windows
+   RM = del /Q /F
+   EXT = .exe
+else
+   # Linux/Unix
+   RM = rm -f
+   EXT =
+endif
 
 .PHONY: all clean
 all: $(TARGET)
@@ -12,5 +23,5 @@ $(TARGET): $(OBJS) $(TARGET).c
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 clean:
-	rm -f $(OBJS) $(TARGET) $(TARGET).exe
+	$(RM) $(OBJS) $(TARGET)$(EXT)
 
