@@ -17,6 +17,7 @@ python gen_data.py --count=100000000  # Will take ~60s to run, generates ~1GB fi
 import argparse
 import random
 import struct
+import shutil
 
 BOTTOM_INT_RANGE = 0
 TOP_INT_RANGE = 4294967295  # 2^32 - 1
@@ -29,12 +30,16 @@ def gen_random_dist(count: int):
     Write an integer to every single line
     Also write to a binary file
     """
+    bin_filename = f"random-{count}.bin"
     with open(f"random-{count}.txt", "w") as text_file, \
-         open(f"random-{count}.bin", "wb") as binary_file:
+         open(bin_filename, "wb") as binary_file:
         for _ in range(count):
             val = random.randint(BOTTOM_INT_RANGE, TOP_INT_RANGE)
             text_file.write(str(val) + "\n")
             binary_file.write(struct.pack("<I", val)) # < for little-endian, I for unsigned int
+
+    # Do not modify this file, it used to see what we initially ran because merge sort overwrites the file we give it
+    shutil.copy(bin_filename, f"random-{count}-UNMODIFIED.bin")
 
 def main():
     parser = argparse.ArgumentParser(description="Type of data to make")
