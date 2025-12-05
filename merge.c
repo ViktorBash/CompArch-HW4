@@ -1,70 +1,64 @@
 #include "merge.h"
 #include <stdlib.h>
-void merge(uint32_t *arr, size_t left, size_t mid, size_t right) {
-    int i, j, k;
-    int n = mid - left + 1;
-    int m = right - mid;
 
-    // TODO: Maybe there is a way to allocate all at once instead of making a bunch of mallocs, or to optimize this some other way
-    uint32_t *leftArr = malloc(n * sizeof(uint32_t));
-    uint32_t *rightArr = malloc(m * sizeof(uint32_t));
+// Helper function to merge two sorted subarrays using a temporary buffer
+/*
+ * Temp = our temp buf, while arr is our input (and both our input)
+ */
+void merge_helper(uint32_t *arr, uint32_t *temp, size_t left, size_t mid, size_t right) {
+    size_t i = left;
+    size_t j = mid + 1;
+    size_t k = left;
 
-    for (j = 0; j < m; j++)
-        rightArr[j] = arr[mid + 1 + j];
-
-    for (i = 0; i < n; i++)
-        leftArr[i] = arr[left + i];
-
-    k = left;
-    i = 0;
-    j = 0;
-
-    while (i < n && j < m) {
-        if (leftArr[i] <= rightArr[j]) {
-            arr[k] = leftArr[i];
-            i++;
+    // Copy data to temp arrays
+    while (i <= mid && j <= right) {
+        if (arr[i] <= arr[j]) {
+            temp[k++] = arr[i++];
+        } else {
+            temp[k++] = arr[j++];
         }
-        else {
-            arr[k] = rightArr[j];
-            j++;
-        }
-        k++;
     }
 
-    while (i < n) {
-        arr[k] = leftArr[i];
-        i++;
-        k++;
+    // Copy the remaining elements of left subarray
+    while (i <= mid) {
+        temp[k++] = arr[i++];
     }
 
-    while (j < m) {
-        arr[k] = rightArr[j];
-        j++;
-        k++;
+    // Copy the remaining elements of right subarray
+    while (j <= right) {
+        temp[k++] = arr[j++];
     }
 
-    // Cleanup
-    free(leftArr);
-    free(rightArr);
+    // Copy the temp array to original array
+    for (i = left; i <= right; i++) {
+        arr[i] = temp[i];
+    }
 }
 
-// [left, right] (right is inclusive)
-void merge_sort(uint32_t *arr, size_t left, size_t right) {
 
+// [left, right] (right is inclusive)
+void merge_sort_recursive(uint32_t *arr, uint32_t *temp, size_t left, size_t right) {
     if (left < right) {
         // Make sure we don't overflow
         int mid = left + (right - left) / 2;
 
         // Split right half and left half
-        merge_sort(arr, left, mid);
-        merge_sort(arr, mid  + 1, right);
+        merge_sort_recursive(arr, temp, left, mid);
+        merge_sort_recursive(arr, temp, mid + 1, right);
 
         // Combine right half and left halfback
-        merge(arr, left, mid, right);
-
+        merge_helper(arr, temp, left, mid, right);
     }
 }
 
 void merge_sort_array(uint32_t *arr, size_t size) {
-    merge_sort(arr, 0, size - 1);
+    if (size == 0) {
+        return;
+    }
+    uint32_t *temp = (uint32_t *)malloc(size * sizeof(uint32_t));
+    if (temp == NULL) {
+        return;
+    }
+    merge_sort_recursive(arr, temp, 0, size - 1);
+    free(temp);
 }
