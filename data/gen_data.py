@@ -16,6 +16,7 @@ python gen_data.py --count=100000000  # Will take ~60s to run, generates ~1GB fi
 
 import argparse
 import random
+import struct
 
 BOTTOM_INT_RANGE = 0
 TOP_INT_RANGE = 4294967295  # 2^32 - 1
@@ -26,12 +27,14 @@ def gen_random_dist(count: int):
     Steps:
     Open a file called "data.txt"
     Write an integer to every single line
+    Also write to a binary file
     """
-    with open(f"random-{count}.txt", "w") as file:
+    with open(f"random-{count}.txt", "w") as text_file, \
+         open(f"random-{count}.bin", "wb") as binary_file:
         for _ in range(count):
             val = random.randint(BOTTOM_INT_RANGE, TOP_INT_RANGE)
-            file.write(str(val) + "\n")
-
+            text_file.write(str(val) + "\n")
+            binary_file.write(struct.pack("<I", val)) # < for little-endian, I for unsigned int
 
 def main():
     parser = argparse.ArgumentParser(description="Type of data to make")

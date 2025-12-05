@@ -6,6 +6,12 @@
 #include <unistd.h>
 #include "merge.h"
 #include "parallel_merge.h"
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdint.h>
+
 
 int main(int argc, char *argv[]) {
     clock_t program_start = clock();
@@ -33,6 +39,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+
     if (filename == NULL) {
         fprintf(stderr, USAGE_MSG, argv[0]);
         return 1;
@@ -42,40 +49,49 @@ int main(int argc, char *argv[]) {
     double read_time, sort_time, write_time;
 
     start = clock();
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        perror("Can't open file, error");
-        return 1;
+
+    int fd;
+    struct stat sb;
+    uint32_t *sorted_arr = NULL;
+    size_t file_size;
+
+    // 1. Open the file
+    fd = open(filename, O_RDWR);
+    if (fd == -1) {
+        perror("Error opening file");
+        return EXIT_FAILURE;
     }
 
-    int size = 0;
-    int capacity = 1000;
-    uint32_t *sorted_arr = malloc(capacity * sizeof(uint32_t));
-    if (sorted_arr == NULL) {
-        perror("Failed to allocate initial memory");
-        fclose(file);
-        return 1;
+    // 2. Get the file size
+    if (fstat(fd, &sb) == -1) {
+        perror("Error getting file size (fstat)");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+    file_size = sb.st_size;
+    long size = file_size / sizeof(uint32_t);
+
+    // Check if file size is a multiple of uint32_t size
+    if (file_size == 0 || (file_size % sizeof(uint32_t) != 0)) {
+        fprintf(stderr, "File is empty or not a clean number of uint32_t integers.\n");
+        close(fd);
+        return EXIT_FAILURE;
     }
 
-    while (fscanf(file, "%u", &sorted_arr[size]) == 1) {
-        size++;
-        if (size >= capacity) {
-            capacity *= 2;
-            uint32_t *temp = realloc(sorted_arr, capacity * sizeof(uint32_t));
-            if (temp == NULL) {
-                perror("Failed to reallocate memory");
-                free(sorted_arr);
-                fclose(file);
-                return 1;
-            }
-            sorted_arr = temp;
-        }
+    // 3. Map the file into memory
+    // --- CHANGE 2: Cast the return to uint32_t pointer ---
+    sorted_arr = (uint32_t *)mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+    // Check if mmap failed
+    if (sorted_arr == MAP_FAILED) {
+        perror("Error mapping file to memory (mmap)");
+        close(fd);
+        return EXIT_FAILURE;
     }
-    fclose(file);
+
+
     end = clock();
     read_time = ((double) (end - start)) / CLOCKS_PER_SEC;
-
-
     start = clock();
 
     if (strcmp(type, "parallel") == 0) {
@@ -87,38 +103,24 @@ int main(int argc, char *argv[]) {
     end = clock();
     sort_time = ((double) (end - start)) / CLOCKS_PER_SEC;
 
-    char output_filepath[256];
-    char *input_basename = strrchr(filename, '/');
-    if (input_basename == NULL) {
-        input_basename = strrchr(filename, '\\');
-    }
-    if (input_basename == NULL) {
-        input_basename = filename;
-    } else {
-        input_basename++;
-    }
-    snprintf(output_filepath, sizeof(output_filepath), "sorted_data/%s", input_basename);
 
     start = clock();
-    FILE *output_file = fopen(output_filepath, "w");
-    if (output_file == NULL) {
-        perror("Error opening output file");
-        free(sorted_arr);
-        return 1;
+
+    // This effectively forces write to the file
+    if (msync(sorted_arr, file_size, MS_SYNC) == -1) {
+        perror("Error synchronizing memory (msync)");
+        // Decide whether to continue or exit on failure
     }
 
-    for (int i = 0; i < size; ++i) {
-        fprintf(output_file, "%u\n", sorted_arr[i]);
+    // Unmap the memory region
+    if (munmap(sorted_arr, file_size) == -1) {
+        perror("Error unmapping memory (munmap)");
     }
-    fclose(output_file);
-
-    // Cleanup time
-    free(sorted_arr);
-
+    // Close fd
+    close(fd);
     end = clock();
     write_time = ((double) (end - start)) / CLOCKS_PER_SEC;
 
-    // Now print out the timings for everything
     printf("Time to read data: %f seconds\n", read_time);
     printf("Time to sort data: %f seconds\n", sort_time);
     printf("Time to write data: %f seconds\n", write_time);
@@ -126,6 +128,5 @@ int main(int argc, char *argv[]) {
     clock_t program_end = clock();
     double total_program_time = ((double) (program_end - program_start)) / CLOCKS_PER_SEC;
     printf("Total program time: %f seconds\n", total_program_time);
-
     return 0;
 }
