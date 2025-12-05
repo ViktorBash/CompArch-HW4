@@ -9,12 +9,11 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <errno.h>
-#include <stdint.h>
 
 
 int main(int argc, char *argv[]) {
-    clock_t program_start = clock();
+    struct timespec program_start, program_end;
+    clock_gettime(CLOCK_MONOTONIC, &program_start);
     char *filename = NULL;
     char *type = "merge";
     const char *USAGE_MSG = "Usage: %s -f <input_file> -type <parallel|merge>\n";
@@ -45,10 +44,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    clock_t start, end;
+    struct timespec start, end;
     double read_time, sort_time, write_time;
 
-    start = clock();
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
     int fd;
     struct stat sb;
@@ -90,9 +89,9 @@ int main(int argc, char *argv[]) {
     }
 
 
-    end = clock();
-    read_time = ((double) (end - start)) / CLOCKS_PER_SEC;
-    start = clock();
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    read_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
     if (strcmp(type, "parallel") == 0) {
         parallel_merge_sort_array(sorted_arr, size);
@@ -100,11 +99,11 @@ int main(int argc, char *argv[]) {
         merge_sort_array(sorted_arr, size);
     }
 
-    end = clock();
-    sort_time = ((double) (end - start)) / CLOCKS_PER_SEC;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    sort_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
 
-    start = clock();
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
     // This effectively forces write to the file
     if (msync(sorted_arr, file_size, MS_SYNC) == -1) {
@@ -118,15 +117,15 @@ int main(int argc, char *argv[]) {
     }
     // Close fd
     close(fd);
-    end = clock();
-    write_time = ((double) (end - start)) / CLOCKS_PER_SEC;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    write_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
     printf("Time to read data: %f seconds\n", read_time);
     printf("Time to sort data: %f seconds\n", sort_time);
     printf("Time to write data: %f seconds\n", write_time);
 
-    clock_t program_end = clock();
-    double total_program_time = ((double) (program_end - program_start)) / CLOCKS_PER_SEC;
+    clock_gettime(CLOCK_MONOTONIC, &program_end);
+    double total_program_time = (program_end.tv_sec - program_start.tv_sec) + (program_end.tv_nsec - program_start.tv_nsec) / 1e9;
     printf("Total program time: %f seconds\n", total_program_time);
     return 0;
 }
