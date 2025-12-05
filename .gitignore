@@ -63,3 +63,6 @@ dkms.conf
 
 # Executable files:
 sorting
+
+# MacOS Files
+*.DS_STORE
