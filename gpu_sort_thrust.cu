@@ -17,6 +17,73 @@
  * Windows specific function that is essentially the same as mmap() on UNIX
  * Very sad that mmap() is UNIX only :C
  */
+std::vector<uint32_t> read_memory_mapped(const std::string& filename) {
+    HANDLE hFile = CreateFileA(
+        filename.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    if (hFile == INVALID_HANDLE_VALUE) {
+        std::cerr << "Error opening file for reading." << std::endl;
+        return {};
+    }
+
+    LARGE_INTEGER file_size;
+    if (!GetFileSizeEx(hFile, &file_size)) {
+        std::cerr << "Error getting file size." << std::endl;
+        CloseHandle(hFile);
+        return {};
+    }
+
+    HANDLE hMapping = CreateFileMappingA(
+        hFile,
+        NULL,
+        PAGE_READONLY,
+        0,
+        0,
+        NULL
+    );
+    if (hMapping == NULL) {
+        std::cerr << "Error creating file mapping for reading." << std::endl;
+        CloseHandle(hFile);
+        return {};
+    }
+
+    void* mapped_ptr = MapViewOfFile(
+        hMapping,
+        FILE_MAP_READ,
+        0,
+        0,
+        file_size.QuadPart
+    );
+    if (mapped_ptr == NULL) {
+        std::cerr << "Error mapping view of file for reading." << std::endl;
+        CloseHandle(hMapping);
+        CloseHandle(hFile);
+        return {};
+    }
+
+    // Create a vector and copy the data
+    size_t num_elements = file_size.QuadPart / sizeof(uint32_t);
+    std::vector<uint32_t> data(num_elements);
+    std::memcpy(data.data(), mapped_ptr, file_size.QuadPart);
+
+    // Cleanup
+    UnmapViewOfFile(mapped_ptr);
+    CloseHandle(hMapping);
+    CloseHandle(hFile);
+
+    return data;
+}
+
+/*
+ * Windows specific function that is essentially the same as mmap() on UNIX
+ * Very sad that mmap() is UNIX only :C
+ */
 void write_memory_mapped(const std::string& filename, const thrust::host_vector<uint32_t>& data) {
     size_t data_size = data.size() * sizeof(uint32_t);
 
@@ -109,21 +176,11 @@ int main(int argc, char **argv) {
 
     // Reading in our data
     read_start_cpu = clock();
-    std::ifstream in(input_file, std::ios::binary | std::ios::ate);
-    if (!in) {
-        std::cerr << "Error opening input file: " << input_file << std::endl;
+    std::vector<uint32_t> h_data = read_memory_mapped(input_file);
+    if (h_data.empty()) {
+        std::cerr << "Failed to read data from " << input_file << std::endl;
         return 1;
     }
-
-    std::streamsize size = in.tellg();
-    in.seekg(0, std::ios::beg);
-
-    std::vector<uint32_t> h_data(size / sizeof(uint32_t));
-    if (!in.read((char*)h_data.data(), size)) {
-        std::cerr << "Error reading from input file." << std::endl;
-        return 1;
-    }
-    in.close();
     read_end_cpu = clock();
     std::cout << "Time to read data: " << (double)(read_end_cpu - read_start_cpu) / CLOCKS_PER_SEC << " seconds" << std::endl;
 
