@@ -9,6 +9,72 @@
 #include <thrust/device_vector.h>
 #include <thrust/sort.h>
 #include <thrust/copy.h>
+#include <windows.h>
+#include <iostream>
+#include <vector>
+
+/*
+ * Windows specific function that is essentially the same as mmap() on UNIX
+ * Very sad that mmap() is UNIX only :C
+ */
+void write_memory_mapped(const std::string& filename, const thrust::host_vector<uint32_t>& data) {
+    size_t data_size = data.size() * sizeof(uint32_t);
+
+    // Open or create
+    HANDLE hFile = CreateFileA(
+        filename.c_str(),
+        GENERIC_READ | GENERIC_WRITE,
+        0,
+        NULL,
+        CREATE_ALWAYS, // Overwrite if exists
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE) {
+        std::cerr << "Error creating file." << std::endl;
+        return;
+    }
+
+    HANDLE hMapping = CreateFileMappingA(
+        hFile,
+        NULL,
+        PAGE_READWRITE,
+        0,
+        data_size, // Low-order DWORD of size
+        NULL
+    );
+
+    if (hMapping == NULL) {
+        std::cerr << "Error creating mapping." << std::endl;
+        CloseHandle(hFile);
+        return;
+    }
+
+    // Map the file, get ptr
+    void* mapped_ptr = MapViewOfFile(
+        hMapping,
+        FILE_MAP_WRITE,
+        0,
+        0,
+        data_size
+    );
+
+    if (mapped_ptr == NULL) {
+        std::cerr << "Error mapping view." << std::endl;
+        CloseHandle(hMapping);
+        CloseHandle(hFile);
+        return;
+    }
+
+    // This is speedier
+    std::memcpy(mapped_ptr, data.data(), data_size);
+
+    // Cleanup and flushing
+    UnmapViewOfFile(mapped_ptr);
+    CloseHandle(hMapping);
+    CloseHandle(hFile);
+}
 
 // Check for cuda errors
 void check_cuda(cudaError_t result, char const *const func) {
@@ -80,15 +146,11 @@ int main(int argc, char **argv) {
 
 
     // COMMENCE THE WRITING
-    // This step takes hella time
     write_start_cpu = clock();
-    std::ofstream out(output_file, std::ios::binary);
-    if (!out) {
-        std::cerr << "Error opening output file: " << output_file << std::endl;
-        return 1;
-    }
-    out.write((char*)thrust_h_data.data(), thrust_h_data.size() * sizeof(uint32_t));
-    out.close();
+
+    // Using windows mmap() equivalent
+    write_memory_mapped(output_file, thrust_h_data);
+
     write_end_cpu = clock();
     std::cout << "Time to write data: " << (double)(write_end_cpu - write_start_cpu) / CLOCKS_PER_SEC << " seconds" << std::endl;
 
