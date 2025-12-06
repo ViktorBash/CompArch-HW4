@@ -29,3 +29,17 @@ make
 ```
 sorted_data/...
 ```
+
+
+## How to run the Nvidia GPU Program
+Only tested for Windows GTX 1000 series.
+This does not modify in place but makes a new copy of the data
+
+Go to windows search bar and look for "x64 Native Tools Command Prompt for VS 2022" (or 2019)
+If you don't have anything, download Visual Studio 2022 or 2019 (different IDE than VSCode).
+Once you have it, open it and run `nvcc` in this terminal. Then, you can run the executable output anywhere
+like normal.
+```
+nvcc -arch=sm_61 -o sorter gpu_sort_bitonic.cu
+gpu_sorter.exe data/random-1000.bin output_bin.bin
+```
