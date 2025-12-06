@@ -39,7 +39,15 @@ Go to windows search bar and look for "x64 Native Tools Command Prompt for VS 20
 If you don't have anything, download Visual Studio 2022 or 2019 (different IDE than VSCode).
 Once you have it, open it and run `nvcc` in this terminal. Then, you can run the executable output anywhere
 like normal.
+
+Running bitonic sort: (Our implementation)
 ```
-nvcc -arch=sm_61 -o sorter gpu_sort_bitonic.cu
-gpu_sorter.exe data/random-1000.bin output_bin.bin
+nvcc -arch=sm_61 -o gpu_sorter_bitonic gpu_sort_bitonic.cu
+gpu_sorter_bitonic.exe data/random-1000.bin output_bin.bin
+```
+
+Running radix sort: (using thrust library)
+```
+nvcc -arch=sm_61 -O3 -o gpu_sorter_thrust gpu_sort_thrust.cu
+gpu_sorter_thrust.exe data/random-1000.bin output_bin.bin
 ```
