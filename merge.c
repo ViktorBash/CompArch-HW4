@@ -30,9 +30,29 @@ void merge_helper(uint32_t *arr, uint32_t *temp, size_t left, size_t mid, size_t
     }
 
     // Copy the temp array to original array
-    for (i = left; i <= right; i++) {
-        arr[i] = temp[i];
+    size_t n = right - left + 1;          // number of elements in this segment
+    size_t base = left;
+
+#if defined(__AVX2__)
+    // Process 8 uint32_t elements per iteration (256 bits)
+    size_t vec_elems = (n / 8) * 8;
+    size_t idx = 0;
+
+    for (; idx < vec_elems; idx += 8) {
+        __m256i v = _mm256_loadu_si256((const __m256i *)(temp + base + idx));
+        _mm256_storeu_si256((__m256i *)(arr + base + idx), v);
     }
+
+    // Handle the remaining 0–7 elements
+    for (; idx < n; ++idx) {
+        arr[base + idx] = temp[base + idx];
+    }
+#else
+    // Pure scalar fallback
+    for (size_t idx = 0; idx < n; ++idx) {
+        arr[base + idx] = temp[base + idx];
+    }
+#endif
 }
 
 
