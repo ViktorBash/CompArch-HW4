@@ -5,92 +5,59 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-// Struct to hold data for each sorting thread
 typedef struct {
-    uint32_t *arr;
-    uint32_t *temp;
-    size_t left;
-    size_t right;
-} thread_data;
+    Node *head;
+    Node *result;
+    int   depth;
+} parallel_args;
 
-// Struct to hold data for each merging thread
-typedef struct {
-    uint32_t *arr;
-    uint32_t *temp;
-    size_t left;
-    size_t mid;
-    size_t right;
-} merge_data;
+static void* parallel_worker(void *arg);
 
-void *threaded_merge_sort(void *arg) {
-    thread_data *data = (thread_data *)arg;
-    if (data->left < data->right) {
-        merge_sort_recursive(data->arr, data->temp, data->left, data->right);
+// Recursive parallel merge sort on a linked list.
+// max_depth controls how many levels of parallel recursion you allow.
+// When max_depth <= 0, it falls back to sequential merge_sort_ll.
+Node* parallel_merge_sort_ll(Node *head, int max_depth) {
+    if (head == NULL || head->next == NULL) {
+        return head;
     }
-    return NULL;
-}
 
-void *threaded_merge(void *arg) {
-    merge_data *data = (merge_data *)arg;
-    merge_helper(data->arr, data->temp, data->left, data->mid, data->right);
-    return NULL;
-}
+    if (max_depth <= 0) {
+        return merge_sort_ll(head);  // sequential fallback
+    }
 
-void parallel_merge_sort_array(uint32_t *arr, size_t size) {
-    long num_threads_long = sysconf(_SC_NPROCESSORS_ONLN);
-    int NUM_THREADS;
-    if (num_threads_long == -1) {
-        NUM_THREADS = 12;
+    Node *middle = get_middle(head);
+    Node *right_head = middle->next;
+    middle->next = NULL;  // split
+
+    // Prepare arguments for right-half thread
+    parallel_args right_args;
+    right_args.head   = right_head;
+    right_args.result = NULL;
+    right_args.depth  = max_depth - 1;
+
+    pthread_t t;
+    int err = pthread_create(&t, NULL, parallel_worker, &right_args);
+    Node *left_sorted;
+
+    if (err == 0) {
+        // Sort left half in current thread (still parallel)
+        left_sorted = parallel_merge_sort_ll(head, max_depth - 1);
+
+        // Wait for right half
+        pthread_join(t, NULL);
     } else {
-        NUM_THREADS = (int)num_threads_long;
+        // If thread creation fails, just do both sequentially
+        fprintf(stderr, "pthread_create failed, falling back to sequential\n");
+        left_sorted  = merge_sort_ll(head);
+        right_args.result = merge_sort_ll(right_head);
     }
 
-    if (size < NUM_THREADS) {
-        merge_sort_array(arr, size);
-        return;
-    }
+    Node *right_sorted = right_args.result;
+    return merge_helper_ll(left_sorted, right_sorted);
+}
 
-    uint32_t *temp = (uint32_t *)malloc(size * sizeof(uint32_t));
-    if (temp == NULL) {
-        return;
-    }
-
-    pthread_t threads[NUM_THREADS];
-    thread_data data[NUM_THREADS];
-    size_t section_size = size / NUM_THREADS;
-
-
-    for (int i = 0; i < NUM_THREADS; i++) {
-        data[i].arr = arr;
-        data[i].temp = temp;
-        data[i].left = i * section_size;
-        data[i].right = (i == NUM_THREADS - 1) ? size - 1 : (i + 1) * section_size - 1;
-        pthread_create(&threads[i], NULL, threaded_merge_sort, &data[i]);
-    }
-
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    // Parallel merge
-    for (int num_merged = 1; num_merged < NUM_THREADS; num_merged *= 2) {
-        int num_threads_for_merge = (NUM_THREADS / (2 * num_merged));
-        pthread_t merge_threads[num_threads_for_merge];
-        merge_data m_data[num_threads_for_merge];
-        for (int i = 0; i < num_threads_for_merge; i++) {
-            size_t left = i * 2 * num_merged * section_size;
-            size_t mid = left + num_merged * section_size - 1;
-            size_t right = left + 2 * num_merged * section_size - 1;
-
-            if (right >= size) {
-                right = size - 1;
-            }
-            m_data[i] = (merge_data){.arr = arr, .temp = temp, .left = left, .mid = mid, .right = right};
-            pthread_create(&merge_threads[i], NULL, threaded_merge, &m_data[i]);
-        }
-        for (int i = 0; i < num_threads_for_merge; i++) {
-            pthread_join(merge_threads[i], NULL);
-        }
-    }
-    free(temp);
+static void* parallel_worker(void *arg) {
+    parallel_args *p = (parallel_args*)arg;
+    p->result = parallel_merge_sort_ll(p->head, p->depth);
+    return NULL;
 }

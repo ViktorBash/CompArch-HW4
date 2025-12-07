@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include "merge.h"
 
-void parallel_merge_sort_array(uint32_t *arr, size_t size);
+Node* parallel_merge_sort_ll(Node *head, int max_depth);
 
 #endif //PARALLEL_MERGE_H
