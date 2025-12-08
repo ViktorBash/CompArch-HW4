@@ -91,21 +91,18 @@ int main(int argc, char *argv[]) {
                 (end.tv_nsec - start.tv_nsec) / 1e9;
 
     // ===== Build list if using linked-list merge sort =====
-    Node *head = NULL;
-    if (strcmp(type, "merge") == 0) {
-        head = array_to_list(sorted_arr, size);
-        if (head == NULL) {
-            fprintf(stderr, "Failed to build linked list from array\n");
-            munmap(sorted_arr, file_size);
-            close(fd);
-            return EXIT_FAILURE;
-        }
+    Node *head = array_to_list(sorted_arr, size);
+    if (head == NULL) {
+        fprintf(stderr, "Failed to build linked list from array\n");
+        munmap(sorted_arr, file_size);
+        close(fd);
+        return EXIT_FAILURE;
     }
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     if (strcmp(type, "parallel") == 0) {
-        parallel_merge_sort_ll(head, max_depth);
+        head = parallel_merge_sort_ll(head, max_depth);
     } else {
         head = merge_sort_ll(head);
     }
@@ -114,10 +111,11 @@ int main(int argc, char *argv[]) {
     sort_time = (end.tv_sec - start.tv_sec) +
                 (end.tv_nsec - start.tv_nsec) / 1e9;
 
-    // Free the linked list if it was used
-    if (head != NULL) {
-        free_list(head);
-    }
+    // ===== Copy sorted data back into the mmap’d array =====
+    // list_to_array(head, sorted_arr, size);
+
+    // Free the linked list
+    free_list(head);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
