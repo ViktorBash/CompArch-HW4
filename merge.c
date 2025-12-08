@@ -82,3 +82,99 @@ void merge_sort_array(uint32_t *arr, size_t size) {
     merge_sort_recursive(arr, temp, 0, size - 1);
     free(temp);
 }
+
+// Helper to find the middle of any linked list
+Node* get_middle(Node *head) {
+    if (head == NULL)
+        return head;
+
+    Node *slow = head;
+    Node *fast = head;
+
+    // When fast reaches the end, slow will be at the middle (for even length, "first middle")
+    while (fast->next != NULL && fast->next->next != NULL) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+    return slow;
+}
+
+// Merge subroutine to merge two sorted lists
+Node* merge_helper_ll(Node* a, Node* b) {
+    // Using a stack-allocated dummy node is simpler
+    Node dummy;
+    Node *current = &dummy;
+
+    dummy.next = NULL;
+
+    while (a != NULL && b != NULL) {
+        if (a->val <= b->val) {
+            current->next = a;
+            a = a->next;
+        } else {
+            current->next = b;
+            b = b->next;
+        }
+        current = current->next;
+    }
+
+    // Attach the remaining nodes
+    current->next = (a != NULL) ? a : b;
+
+    return dummy.next;
+}
+
+// Main recursive LL merge sort function
+Node* merge_sort_ll(Node *head) {
+    if (head == NULL || head->next == NULL)
+        return head;
+
+    // Split the list into two halves
+    Node *middle = get_middle(head);
+    Node *right_head = middle->next;
+    middle->next = NULL;  // break the list
+
+    Node *left_sorted = merge_sort_ll(head);
+    Node *right_sorted = merge_sort_ll(right_head);
+
+    return merge_helper_ll(left_sorted, right_sorted);
+}
+
+void free_list(Node *head) {
+    Node *cur = head;
+    while (cur != NULL) {
+        Node *next = cur->next;
+        free(cur);
+        cur = next;
+    }
+}
+
+Node* array_to_list(uint32_t *arr, size_t n) {
+    if (n == 0)
+        return NULL;
+
+    Node *head = NULL;
+    Node *tail = NULL;
+
+    for (size_t i = 0; i < n; ++i) {
+        Node *node = malloc(sizeof(Node));
+        if (!node) {
+            // On malloc failure, clean up and return NULL
+            free_list(head);
+            return NULL;
+        }
+        node->val = arr[i];
+        node->next = NULL;
+
+        if (head == NULL) {
+            head = tail = node;
+        } else {
+            tail->next = node;
+            tail = node;
+        }
+    }
+
+    return head;
+}
+
+
