@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include <limits.h>
 #include <time.h>
+#include <windows.h>
 
 #define BLOCK_SIZE 256
 /*
@@ -80,36 +81,41 @@ int main(int argc, char **argv) {
     const char *input_file = argv[1];
     const char *output_file = argv[2];
 
-    // --- 1. Read Input File ---
+    uint32_t *h_data;
+    size_t num_elements;
+    size_t padded_n;
+
+    // Since this is C, we do some more primitive stuff to get FileMappings
     read_start_cpu = clock();
-    FILE *fp = fopen(input_file, "rb");
-    if (!fp) {
-        perror("Error opening input file");
+
+    HANDLE hFileRead = CreateFileA(input_file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFileRead == INVALID_HANDLE_VALUE) {
         return 1;
     }
 
-    // Get file size
-    fseek(fp, 0, SEEK_END);
-    size_t file_bytes = ftell(fp);
-    rewind(fp);
+    LARGE_INTEGER file_size;
+    if (!GetFileSizeEx(hFileRead, &file_size)) {
+        return 1;
+    }
 
-    size_t num_elements = file_bytes / sizeof(uint32_t);
-    size_t padded_n = next_power_of_two(num_elements);
+    num_elements = file_size.QuadPart / sizeof(uint32_t);
+    padded_n = next_power_of_two(num_elements);
+    printf("Reading %zu elements. Padding to %zu for Bitonic Sort\n", num_elements, padded_n);
 
-    printf("Reading %zu elements. Padding to %zu for Bitonic Sort...\n", num_elements, padded_n);
+    HANDLE hMappingRead = CreateFileMappingA(hFileRead, NULL, PAGE_READONLY, 0, 0, NULL);
+
+    void* mapped_ptr_read = MapViewOfFile(hMappingRead, FILE_MAP_READ, 0, 0, file_size.QuadPart);
 
     // Allocate HOST memory (Padded Size)
-    uint32_t *h_data;
     check_cuda(cudaMallocHost((void **) &h_data, padded_n * sizeof(uint32_t)), "cudaMallocHost");
 
-    // Read data
-    size_t read_count = fread(h_data, sizeof(uint32_t), num_elements, fp);
-    if (read_count != num_elements) {
-        fprintf(stderr, "Error: Read mismatch.\n");
-        fclose(fp);
-        return 1;
-    }
-    fclose(fp);
+    // Copy data from mapped file to host memory
+    memcpy(h_data, mapped_ptr_read, file_size.QuadPart);
+
+    // Cleanup read mapping
+    UnmapViewOfFile(mapped_ptr_read);
+    CloseHandle(hMappingRead);
+    CloseHandle(hFileRead);
 
     // Fill padding with UINT32_MAX so they bubble to the end
     for (size_t i = num_elements; i < padded_n; i++) {
@@ -151,15 +157,28 @@ int main(int argc, char **argv) {
     printf("Time to sort data on GPU: %f seconds\n", sort_time_ms / 1000.0f);
 
 
-    // --- 3. Write Output File ---
+    // Here we are outputting are stuff again, using similar stuff as before
     write_start_cpu = clock();
-    FILE *fp_out = fopen(output_file, "wb");
-    if (!fp_out) {
-        perror("Error opening output file");
+    size_t data_size_out = num_elements * sizeof(uint32_t);
+    HANDLE hFileWrite = CreateFileA(output_file, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFileWrite == INVALID_HANDLE_VALUE) {
         return 1;
     }
-    fwrite(h_data, sizeof(uint32_t), num_elements, fp_out);
-    fclose(fp_out);
+
+    HANDLE hMappingWrite = CreateFileMappingA(hFileWrite, NULL, PAGE_READWRITE, 0, data_size_out, NULL);
+    if (hMappingWrite == NULL) {
+        return 1;
+    }
+
+    void* mapped_ptr_write = MapViewOfFile(hMappingWrite, FILE_MAP_WRITE, 0, 0, data_size_out);
+
+    memcpy(mapped_ptr_write, h_data, data_size_out);
+
+    // Cleanup write mapping
+    UnmapViewOfFile(mapped_ptr_write);
+    CloseHandle(hMappingWrite);
+    CloseHandle(hFileWrite);
+
     write_end_cpu = clock();
     printf("Time to write data: %f seconds\n", (double) (write_end_cpu - write_start_cpu) / CLOCKS_PER_SEC);
 
@@ -173,6 +192,5 @@ int main(int argc, char **argv) {
 
     total_end_cpu = clock(); // End total CPU timer
     printf("Total program time: %f seconds\n", (double) (total_end_cpu - total_start_cpu) / CLOCKS_PER_SEC);
-
     return 0;
 }
